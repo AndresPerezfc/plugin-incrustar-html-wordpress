@@ -442,7 +442,7 @@
             description: 'Incrusta interactividades Twine exportadas como HTML en tu página',
             icon: 'media-text',
             category: 'embed',
-            keywords: ['html', 'embed', 'iframe', 'archivo'],
+            keywords: ['twine', 'interactividad', 'html', 'embed', 'iframe'],
             attributes: {
                 content: { 
                     type: 'string', 
@@ -454,7 +454,7 @@
                 },
                 height: {
                     type: 'string',
-                    default: '600px'
+                    default: 'auto'
                 }
             },
             edit: SimpleHTMLEmbed,

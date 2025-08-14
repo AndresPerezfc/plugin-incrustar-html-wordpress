@@ -52,7 +52,6 @@ class SimpleHTMLTest {
                 transition: height 0.3s ease;
             }
             .simple-html-iframe.auto-height {
-                height: auto !important;
                 min-height: 200px;
             }
             .simple-html-loading {
@@ -75,34 +74,23 @@ class SimpleHTMLTest {
             }
         ');
         
-        // Script para ajustar altura automáticamente
-        wp_add_inline_script('wp-block-library', '
-            document.addEventListener("DOMContentLoaded", function() {
-                function adjustIframeHeight() {
-                    const iframes = document.querySelectorAll(".simple-html-iframe");
-                    iframes.forEach(function(iframe) {
-                        if (iframe.dataset.height === "auto") {
-                            iframe.onload = function() {
-                                try {
-                                    let contentHeight = iframe.contentWindow.document.body.scrollHeight;
-                                    if (contentHeight > 0) {
-                                        iframe.style.height = Math.max(contentHeight + 50, 200) + "px";
-                                        iframe.classList.add("auto-height");
-                                    }
-                                } catch (e) {
-                                    // Error de CORS - mantener altura por defecto
-                                    console.log("No se puede acceder al contenido del iframe (CORS)");
-                                }
-                            };
-                        }
-                    });
-                }
-                adjustIframeHeight();
-                // Re-ejecutar cuando se carguen nuevos iframes (para el editor)
-                const observer = new MutationObserver(adjustIframeHeight);
-                observer.observe(document.body, { childList: true, subtree: true });
-            });
-        ');
+        // Incluir el script dedicado para redimensionar iframes Twine
+        wp_enqueue_script(
+            'twine-iframe-resizer',
+            plugin_dir_url(__FILE__) . 'twine-iframe-resizer.js',
+            array(),
+            time(),
+            true
+        );
+        
+        // TEMPORALMENTE: Incluir debug helper para diagnóstico
+        wp_enqueue_script(
+            'twine-debug-helper',
+            plugin_dir_url(__FILE__) . 'debug-height-helper.js',
+            array('twine-iframe-resizer'),
+            time(),
+            true
+        );
     }
     
     public function add_ajax_url() {
@@ -244,8 +232,8 @@ class SimpleHTMLTest {
         // Programar eliminación después de 24 horas
         wp_schedule_single_event(time() + (24 * 3600), 'delete_temp_html', array($filepath));
         
-        // Determinar altura del iframe
-        $iframe_height = $height === 'auto' ? '600px' : $height;
+        // Determinar altura del iframe - usar altura pequeña inicial para auto
+        $iframe_height = $height === 'auto' ? '400px' : $height;
         $auto_height_attr = $height === 'auto' ? 'data-height="auto"' : '';
         $responsive_class = $responsive ? ' responsive-iframe' : '';
         
@@ -270,9 +258,9 @@ class SimpleHTMLTest {
     }
     
     private function wrap_html_content($content) {
-        // Si el contenido ya tiene estructura HTML completa, devolverlo tal como está
+        // Si el contenido ya tiene estructura HTML completa, inyectar el script
         if (strpos($content, '<html') !== false || strpos($content, '<!DOCTYPE') !== false) {
-            return $content;
+            return $this->inject_height_script($content);
         }
         
         // Si no, envolverlo en una estructura HTML básica
@@ -296,8 +284,23 @@ class SimpleHTMLTest {
 </head>
 <body>
 ' . $content . '
+<script>' . file_get_contents(plugin_dir_path(__FILE__) . 'twine-height-script.js') . '</script>
 </body>
 </html>';
+    }
+    
+    private function inject_height_script($content) {
+        // Leer el script dedicado de altura
+        $script_content = file_get_contents(plugin_dir_path(__FILE__) . 'twine-height-script.js');
+        $script = '<script>' . $script_content . '</script>';
+        
+        // Intentar inyectar antes del </body>
+        if (strpos($content, '</body>') !== false) {
+            return str_replace('</body>', $script . '</body>', $content);
+        }
+        
+        // Si no hay </body>, añadir al final
+        return $content . $script;
     }
 }
 
